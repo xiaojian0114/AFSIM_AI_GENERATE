@@ -5,10 +5,13 @@ import os
 import sys
 import time
 import requests  
+from dotenv import load_dotenv
 
-API_BASE_URL = "https://api.deepseek.com"  
-API_KEY = "sk-75ed608c4f8342c6934bb5c6f9cb4888"  
-MODEL_NAME = "deepseek-chat"  
+load_dotenv()
+
+API_BASE_URL = os.getenv("DEEPSEEK_API_BASE")
+API_KEY = os.getenv("DEEPSEEK_API_KEY")
+MODEL_NAME = os.getenv("DEEPSEEK_API_VERSION")
 
 KNOWLEDGE_DIR = "./tutorials"  
 
