@@ -5,7 +5,7 @@ from typing import Optional
 
 def get_env_path() -> Path:
     """获取 .env 文件路径"""
-    return Path(__file__).parent.parent / ".env"
+    return Path(__file__).parent.parent.parent / ".env"
 
 
 def read_env_file() -> dict:

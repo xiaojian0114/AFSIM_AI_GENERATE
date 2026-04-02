@@ -34,7 +34,13 @@ async def chat(request: ChatRequest):
             usage=result.get("usage")
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        error_msg = str(e)
+        if request.provider == "ollama":
+            raise HTTPException(status_code=500, detail=f"[Ollama] {error_msg}")
+        elif request.provider == "deepseek":
+            raise HTTPException(status_code=500, detail=f"[DeepSeek] {error_msg}")
+        else:
+            raise HTTPException(status_code=500, detail=error_msg)
 
 
 @router.post("/generate", response_model=GenerationResponse)
@@ -65,11 +71,20 @@ async def generate_script(request: GenerationRequest):
             {"role": "user", "content": user_message}
         ]
         
-        result = llm_service.chat(
-            messages=messages,
-            provider=request.provider,
-            temperature=0.2
-        )
+        try:
+            result = llm_service.chat(
+                messages=messages,
+                provider=request.provider,
+                temperature=0.2
+            )
+        except Exception as e:
+            error_msg = str(e)
+            if request.provider == "ollama":
+                raise HTTPException(status_code=500, detail=f"[Ollama] {error_msg}")
+            elif request.provider == "deepseek":
+                raise HTTPException(status_code=500, detail=f"[DeepSeek] {error_msg}")
+            else:
+                raise HTTPException(status_code=500, detail=error_msg)
         
         content = result["choices"][0]["message"]["content"]
         
@@ -92,10 +107,10 @@ async def generate_script(request: GenerationRequest):
             explanation=explanation,
             provider=request.provider
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        import traceback
-        error_detail = f"{str(e)}\n{traceback.format_exc()}"
-        raise HTTPException(status_code=500, detail=error_detail)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/knowledge/files")
@@ -110,6 +125,7 @@ async def get_knowledge_files():
 async def get_settings():
     """获取当前设置（不包含敏感信息）"""
     return SettingsResponse(
+        provider=settings.provider,
         deepseek_api_base=settings.deepseek_api_base,
         deepseek_model=settings.deepseek_model,
         ollama_enabled=settings.ollama_enabled,
@@ -122,8 +138,14 @@ async def get_settings():
 async def update_settings(update: SettingsUpdate):
     """更新设置（持久化到 .env 文件）"""
     try:
+        print(f"[Settings] 收到更新请求: {update}")
+        
         env_updates = {}
         
+        if update.provider is not None:
+            settings.provider = update.provider
+            env_updates["PROVIDER"] = update.provider
+            print(f"[Settings] 更新 provider: {update.provider}")
         if update.deepseek_api_key is not None:
             settings.deepseek_api_key = update.deepseek_api_key
             env_updates["DEEPSEEK_API_KEY"] = update.deepseek_api_key
@@ -143,11 +165,18 @@ async def update_settings(update: SettingsUpdate):
             settings.ollama_model = update.ollama_model
             env_updates["OLLAMA_MODEL"] = update.ollama_model
         
+        print(f"[Settings] 准备写入 env: {env_updates}")
+        
         if env_updates:
             update_env_file(env_updates)
         
+        print(f"[Settings] 保存成功")
+        
         return {"status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"[Settings] 保存失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

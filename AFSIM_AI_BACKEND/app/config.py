@@ -6,6 +6,9 @@ import os
 class Settings(BaseSettings):
     """应用配置"""
     
+    # 默认提供商
+    provider: str = "deepseek"
+    
     # DeepSeek API 配置
     deepseek_api_key: str = ""
     deepseek_api_base: str = "https://api.deepseek.com"

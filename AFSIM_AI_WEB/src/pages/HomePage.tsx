@@ -1,7 +1,18 @@
-import React, { useState } from 'react';
-import { ChatMessage, CodeBlock, SettingsPanel } from '../components';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { ChatMessage, SettingsPanel } from '../components';
 import { chatApi } from '../services';
 import type { Message, Settings } from '../types';
+
+// 抽离样式常量，保持渲染逻辑整洁
+const COLORS = {
+  bg: '#111827',
+  panel: '#1f2937',
+  border: '#374151',
+  text: '#f3f4f6',
+  primary: '#3b82f6',
+  danger: '#ef4444',
+  accent: '#4b5563'
+};
 
 export const HomePage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -9,7 +20,8 @@ export const HomePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [provider, setProvider] = useState<'deepseek' | 'ollama'>('deepseek');
-  const [settings, setSettings] = useState<Settings & { deepseek_api_key: string }>({
+  const [settings, setSettings] = useState<Settings>({
+    provider: 'deepseek',
     deepseek_api_key: '',
     deepseek_api_base: 'https://api.deepseek.com',
     deepseek_model: 'deepseek-chat',
@@ -18,53 +30,97 @@ export const HomePage: React.FC = () => {
     ollama_model: 'llama3'
   });
 
-  React.useEffect(() => {
-    loadSettings();
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // 初始化加载
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const data = await chatApi.getSettings();
+        const savedKey = localStorage.getItem('deepseek_api_key') || '';
+        const newSettings = { ...data, deepseek_api_key: savedKey };
+        setSettings(newSettings);
+        setProvider(data.provider || 'deepseek');
+      } catch (err) {
+        console.error('Settings load failed', err);
+      }
+    };
+    init();
   }, []);
 
-  const loadSettings = async () => {
-    try {
-      const data = await chatApi.getSettings();
-      const savedKey = localStorage.getItem('deepseek_api_key') || '';
-      setSettings({
-        ...data,
-        deepseek_api_key: savedKey
+  // 滚动到底部逻辑优化：使用 requestAnimationFrame 确保在 DOM 更新后触发
+  const scrollToBottom = useCallback(() => {
+    if (chatContainerRef.current) {
+      const scrollContainer = chatContainerRef.current;
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: 'smooth'
       });
-    } catch (error) {
-      console.error('Failed to load settings:', error);
+    }
+  }, []);
+
+  // 同步 provider 与 settings.provider
+  useEffect(() => {
+    if (settings.provider) {
+      setProvider(settings.provider as 'deepseek' | 'ollama');
+    }
+  }, [settings.provider]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, loading, scrollToBottom]);
+
+  // 处理输入框高度自适应
+  useEffect(() => {
+    if (textAreaRef.current) {
+      textAreaRef.current.style.height = 'auto';
+      textAreaRef.current.style.height = `${Math.min(textAreaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [input]);
+
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setLoading(false);
     }
   };
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
-    const userMessage: Message = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
+    const currentInput = input;
+    setInput(''); // 立即清空，提升反馈速度
+    setMessages(prev => [...prev, { role: 'user', content: currentInput }]);
     setLoading(true);
+
+    abortControllerRef.current = new AbortController();
 
     try {
       const response = await chatApi.generate({
-        description: input,
+        description: currentInput,
         mode: 'generate',
         provider
       });
 
-      const assistantMessage: Message = { role: 'assistant', content: response.script };
-      setMessages(prev => [...prev, assistantMessage]);
-
+      // 批量更新消息，减少渲染次数
+      const newMessages: Message[] = [{ role: 'assistant', content: response.script }];
       if (response.explanation) {
-        const explanationMessage: Message = { role: 'system', content: response.explanation };
-        setMessages(prev => [...prev, explanationMessage]);
+        newMessages.push({ role: 'system', content: response.explanation });
       }
+      setMessages(prev => [...prev, ...newMessages]);
     } catch (error: any) {
-      const errorMessage: Message = {
-        role: 'system',
-        content: `错误: ${error.response?.data?.detail || error.message}`
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
+        setMessages(prev => [...prev, { 
+          role: 'system', 
+          content: `❌ 错误: ${error.response?.data?.detail || error.message}` 
+        }]);
+      }
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -75,161 +131,154 @@ export const HomePage: React.FC = () => {
     }
   };
 
-  const handleSaveSettings = async (newSettings: any) => {
-    try {
-      if (newSettings.deepseek_api_key) {
-        localStorage.setItem('deepseek_api_key', newSettings.deepseek_api_key);
-      }
-      await chatApi.updateSettings(newSettings);
-      setSettings(newSettings);
-      setShowSettings(false);
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-    }
-  };
-
-  const handleTestConnection = async (providerType: string) => {
-    try {
-      const result = await chatApi.healthCheck(providerType);
-      alert(`连接状态: ${result.status}\n${result.error || ''}`);
-    } catch (error: any) {
-      alert(`连接失败: ${error.message}`);
-    }
-  };
-
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100vh',
-      backgroundColor: '#111827'
-    }}>
-      {/* Header */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: COLORS.bg, color: COLORS.text }}>
+      
+      {/* 顶部导航栏 */}
       <header style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '16px 24px',
-        backgroundColor: '#1f2937',
-        borderBottom: '1px solid #374151'
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '0 24px', height: '64px', backgroundColor: COLORS.panel,
+        borderBottom: `1px solid ${COLORS.border}`, zIndex: 10
       }}>
-        <h1 style={{ color: '#fff', margin: 0, fontSize: '20px' }}>
-          AFSIM AI - 脚本生成助手
-        </h1>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: COLORS.primary }}></div>
+          <h1 style={{ fontSize: '18px', fontWeight: 600 }}>AFSIM AI <span style={{ fontWeight: 300, opacity: 0.7 }}>Script Assistant</span></h1>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '12px' }}>
           <select
             value={provider}
-            onChange={(e) => setProvider(e.target.value as 'deepseek' | 'ollama')}
-            disabled={settings.ollama_enabled ? false : provider === 'ollama'}
+            onChange={(e) => {
+              const newProvider = e.target.value as 'deepseek' | 'ollama';
+              setProvider(newProvider);
+              setSettings(prev => ({ ...prev, provider: newProvider }));
+            }}
             style={{
-              padding: '8px 12px',
-              backgroundColor: '#374151',
-              border: '1px solid #4b5563',
-              borderRadius: '6px',
-              color: '#fff'
+              padding: '6px 12px', borderRadius: '6px', backgroundColor: COLORS.accent,
+              color: '#fff', border: 'none', outline: 'none', cursor: 'pointer'
             }}
           >
-            <option value="deepseek">DeepSeek 云端</option>
-            {settings.ollama_enabled && <option value="ollama">本地 Ollama</option>}
+            <option value="deepseek">DeepSeek (Cloud)</option>
+            {settings.ollama_enabled && <option value="ollama">Ollama (Local)</option>}
           </select>
-          <button
+          <button 
             onClick={() => setShowSettings(true)}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#374151',
-              border: '1px solid #4b5563',
-              borderRadius: '6px',
-              color: '#fff',
-              cursor: 'pointer'
-            }}
+            style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${COLORS.accent}`, background: 'transparent', color: '#fff', cursor: 'pointer' }}
           >
-            设置
+            ⚙️ 设置
           </button>
         </div>
       </header>
 
-      {/* Chat Area */}
-      <div style={{
-        flex: 1,
-        overflow: 'auto',
-        padding: '24px'
-      }}>
-        {messages.length === 0 && (
-          <div style={{
-            textAlign: 'center',
-            color: '#6b7280',
-            marginTop: '100px'
-          }}>
-            <h2>欢迎使用 AFSIM AI 脚本生成助手</h2>
-            <p>请描述你想要生成的 AFSIM 脚本功能</p>
-          </div>
-        )}
-        {messages.map((msg, index) => (
-          <ChatMessage key={index} role={msg.role} content={msg.content} />
-        ))}
-        {loading && (
-          <div style={{ textAlign: 'center', color: '#6b7280' }}>
-            AI 正在生成脚本...
-          </div>
-        )}
-      </div>
+      {/* 聊天主体 */}
+      <main 
+        ref={chatContainerRef}
+        style={{ flex: 1, overflowY: 'auto', padding: '20px 0' }}
+      >
+        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 20px' }}>
+          {messages.length === 0 && (
+            <div style={{ textAlign: 'center', marginTop: '15vh', opacity: 0.5 }}>
+              <div style={{ fontSize: '48px', marginBottom: '20px' }}>🤖</div>
+              <h2>准备好编写 AFSIM 脚本了吗？</h2>
+              <p>可以尝试：“创建一个带有 4 个传感器的侦察平台”</p>
+            </div>
+          )}
+          
+          {messages.map((msg, idx) => (
+            <div key={idx} style={{ marginBottom: '24px', animation: 'fadeIn 0.3s ease' }}>
+              <ChatMessage role={msg.role} content={msg.content} />
+            </div>
+          ))}
 
-      {/* Input Area */}
-      <div style={{
-        padding: '16px 24px',
-        backgroundColor: '#1f2937',
-        borderTop: '1px solid #374151'
-      }}>
-        <div style={{
-          display: 'flex',
-          gap: '12px'
-        }}>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="描述你想要生成的 AFSIM 脚本功能..."
-            disabled={loading}
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              backgroundColor: '#374151',
-              border: '1px solid #4b5563',
-              borderRadius: '8px',
-              color: '#fff',
-              resize: 'none',
-              minHeight: '48px',
-              maxHeight: '200px',
-              fontFamily: 'inherit',
-              fontSize: '14px'
-            }}
-          />
-          <button
-            onClick={handleSend}
-            disabled={loading || !input.trim()}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: loading ? '#6b7280' : '#3b82f6',
-              border: 'none',
-              borderRadius: '8px',
-              color: '#fff',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontWeight: 'bold'
-            }}
-          >
-            {loading ? '生成中...' : '生成'}
-          </button>
+          {loading && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '12px', color: COLORS.primary }}>
+              <span className="dot-pulse"></span>
+              <span style={{ fontSize: '14px', opacity: 0.8 }}>AI 正在思考并编写脚本...</span>
+            </div>
+          )}
         </div>
-      </div>
+      </main>
 
-      {/* Settings Panel */}
+      {/* 输入区 */}
+      <footer style={{ padding: '24px', backgroundColor: COLORS.bg }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto', position: 'relative' }}>
+          <div style={{
+            display: 'flex', gap: '12px', padding: '12px', 
+            backgroundColor: COLORS.panel, borderRadius: '12px',
+            border: `1px solid ${COLORS.border}`, boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+          }}>
+            <textarea
+              ref={textAreaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyPress}
+              placeholder="输入任务描述，按 Enter 发送..."
+              rows={1}
+              style={{
+                flex: 1, background: 'transparent', border: 'none', color: '#fff',
+                resize: 'none', outline: 'none', fontSize: '15px', lineHeight: '1.5',
+                padding: '8px 4px'
+              }}
+            />
+            <button
+              onClick={loading ? handleStop : handleSend}
+              style={{
+                alignSelf: 'flex-end', width: '40px', height: '40px', borderRadius: '8px',
+                backgroundColor: loading ? COLORS.danger : COLORS.primary,
+                color: '#fff', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'transform 0.1s'
+              }}
+              onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
+              onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              {loading ? '■' : '▲'}
+            </button>
+          </div>
+          <p style={{ fontSize: '12px', textAlign: 'center', marginTop: '8px', color: COLORS.accent }}>
+            支持 Shift + Enter 换行
+          </p>
+        </div>
+      </footer>
+
+      {/* 设置面板 */}
       <SettingsPanel
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
         settings={settings}
-        onSave={handleSaveSettings}
-        onTestConnection={handleTestConnection}
+        onSave={async (s) => {
+          if (s.deepseek_api_key) localStorage.setItem('deepseek_api_key', s.deepseek_api_key);
+          try {
+            await chatApi.updateSettings(s);
+            setSettings(s);
+          } catch (err: any) {
+            console.error('保存失败:', err);
+            throw err;
+          }
+        }}
+        onTestConnection={async (p) => {
+          const res = await chatApi.healthCheck(p);
+          alert(`测试结果: ${res.status}`);
+        }}
       />
+
+      <style>{`
+        .dot-pulse {
+          width: 8px; height: 8px; border-radius: 50%;
+          background-color: ${COLORS.primary};
+          animation: pulse 1.5s infinite ease-in-out;
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(0.8); opacity: 0.5; }
+          50% { transform: scale(1.2); opacity: 1; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: ${COLORS.accent}; border-radius: 10px; }
+      `}</style>
     </div>
   );
 };

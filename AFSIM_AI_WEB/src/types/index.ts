@@ -35,6 +35,8 @@ export interface GenerationResponse {
 }
 
 export interface Settings {
+  provider: 'deepseek' | 'ollama';
+  deepseek_api_key?: string;
   deepseek_api_base: string;
   deepseek_model: string;
   ollama_enabled: boolean;

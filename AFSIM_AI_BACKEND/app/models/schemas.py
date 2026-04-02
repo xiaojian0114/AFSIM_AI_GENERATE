@@ -42,6 +42,7 @@ class GenerationResponse(BaseModel):
 
 class SettingsUpdate(BaseModel):
     """设置更新"""
+    provider: Optional[str] = None
     deepseek_api_key: Optional[str] = None
     deepseek_api_base: Optional[str] = None
     deepseek_model: Optional[str] = None
@@ -52,6 +53,7 @@ class SettingsUpdate(BaseModel):
 
 class SettingsResponse(BaseModel):
     """设置响应（不包含敏感信息）"""
+    provider: str
     deepseek_api_base: str
     deepseek_model: str
     ollama_enabled: bool
