@@ -16,7 +16,7 @@ from ..models.auth import (
 router = APIRouter(prefix="/auth", tags=["认证"])
 
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register")
 def register(user: UserCreate, db: Session = Depends(get_db)):
     """用户注册"""
     # 检查用户名是否存在
@@ -38,7 +38,15 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
     
-    return db_user
+    # 返回字典而不是 ORM 对象，避免类型转换问题
+    return {
+        "id": db_user.id,
+        "username": db_user.username,
+        "email": db_user.email,
+        "role": db_user.role,
+        "is_active": db_user.is_active,
+        "created_at": db_user.created_at.isoformat() if db_user.created_at else None
+    }
 
 
 @router.post("/login", response_model=Token)
@@ -64,10 +72,17 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me")
 def get_me(current_user: User = Depends(get_current_user)):
     """获取当前用户信息"""
-    return current_user
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "role": current_user.role,
+        "is_active": current_user.is_active,
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None
+    }
 
 
 @router.get("/users", response_model=list[UserResponse])

@@ -1,10 +1,17 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 import os
 
 
 class Settings(BaseSettings):
     """应用配置"""
+    
+    # MySQL 数据库配置
+    mysql_host: str = "localhost"
+    mysql_port: int = 3306
+    mysql_user: str = "root"
+    mysql_password: str = ""
+    mysql_database: str = "afsim_ai"
     
     # 默认提供商
     provider: str = "deepseek"
@@ -43,9 +50,11 @@ class Settings(BaseSettings):
                     value = int(value)
                 setattr(self, key, value)
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
 
 settings = Settings()
