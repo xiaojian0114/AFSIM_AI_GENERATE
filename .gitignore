@@ -1,14 +1,64 @@
-vector_db_afsim_enhanced/
-demos/
-generated_projects/
+# Python
 __pycache__/
-chroma_db/
-exports/
-logs/
-afsim_coder.log
-afsim_rag.log
-*.log
+*.py[cod]
+*.pyc
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Node
+node_modules/
+.npm/
+.yarn/
+
+# Build outputs
+*.egg
+*.whl
+
+# Environment & secrets
 .env
 .env.local
 .env.*.local
-project_analysis_report.jso
+.env.production
+*.local
+
+# Logs
+*.log
+logs/
+afsim_coder.log
+afsim_rag.log
+
+# Databases & caches
+chroma_db/
+vector_db_afsim_enhanced/
+*.db
+*.sqlite
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Exported/generated files
+demos/
+generated_projects/
+exports/
+project_analysis_report.json
+
+# Backend
+AFSIM_AI_BACKEND/.venv/
+
+# Frontend build
+AFSIM_AI_WEB/dist/
+AFSIM_AI_WEB/.vite/
