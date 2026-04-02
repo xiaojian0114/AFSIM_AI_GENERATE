@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     def knowledge_base_path(self) -> str:
         return os.path.join(os.path.dirname(os.path.dirname(__file__)), "tutorials")
     
+    def reload(self):
+        """重新加载配置"""
+        self.__init__()
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

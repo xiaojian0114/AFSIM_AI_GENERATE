@@ -7,6 +7,7 @@ from ..models.schemas import (
 )
 from ..services import llm_service, knowledge_base
 from ..config import settings
+from ..utils import update_env_file
 
 router = APIRouter()
 
@@ -119,20 +120,31 @@ async def get_settings():
 
 @router.post("/settings")
 async def update_settings(update: SettingsUpdate):
-    """更新设置"""
+    """更新设置（持久化到 .env 文件）"""
     try:
+        env_updates = {}
+        
         if update.deepseek_api_key is not None:
             settings.deepseek_api_key = update.deepseek_api_key
+            env_updates["DEEPSEEK_API_KEY"] = update.deepseek_api_key
         if update.deepseek_api_base is not None:
             settings.deepseek_api_base = update.deepseek_api_base
+            env_updates["DEEPSEEK_API_BASE"] = update.deepseek_api_base
         if update.deepseek_model is not None:
             settings.deepseek_model = update.deepseek_model
+            env_updates["DEEPSEEK_MODEL"] = update.deepseek_model
         if update.ollama_enabled is not None:
             settings.ollama_enabled = update.ollama_enabled
+            env_updates["OLLAMA_ENABLED"] = str(update.ollama_enabled)
         if update.ollama_base_url is not None:
             settings.ollama_base_url = update.ollama_base_url
+            env_updates["OLLAMA_BASE_URL"] = update.ollama_base_url
         if update.ollama_model is not None:
             settings.ollama_model = update.ollama_model
+            env_updates["OLLAMA_MODEL"] = update.ollama_model
+        
+        if env_updates:
+            update_env_file(env_updates)
         
         return {"status": "success"}
     except Exception as e:
