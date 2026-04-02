@@ -1,47 +1,106 @@
-from pydantic import BaseModel
-from typing import List, Optional, Literal
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List
+from datetime import datetime
 
 
-class Message(BaseModel):
-    """对话消息"""
-    role: Literal["user", "assistant", "system"]
+# ============ 用户认证 Schema ============
+class UserBase(BaseModel):
+    username: str
+    email: EmailStr
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
+class UserResponse(UserBase):
+    id: int
+    role: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class TokenData(BaseModel):
+    user_id: Optional[int] = None
+
+
+# ============ 对话 Schema ============
+class ConversationCreate(BaseModel):
+    title: Optional[str] = "新对话"
+    provider: str = "deepseek"
+    model: Optional[str] = None
+
+
+class ConversationUpdate(BaseModel):
+    title: Optional[str] = None
+
+
+class ConversationResponse(BaseModel):
+    id: int
+    title: str
+    provider: str
+    model: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    messages_count: Optional[int] = 0
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationDetailResponse(ConversationResponse):
+    messages: List["MessageResponse"] = []
+
+
+# ============ 消息 Schema ============
+class MessageCreate(BaseModel):
+    conversation_id: int
+    role: str  # user, assistant, system
     content: str
 
 
-class ChatRequest(BaseModel):
-    """聊天请求"""
-    messages: List[Message]
-    stream: bool = False
-    provider: Literal["deepseek", "ollama"] = "deepseek"
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-
-
-class ChatResponse(BaseModel):
-    """聊天响应"""
+class MessageResponse(BaseModel):
+    id: int
+    conversation_id: int
+    role: str
     content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============ 设置 Schema ============
+class SettingsResponse(BaseModel):
     provider: str
-    model: str
-    usage: Optional[dict] = None
-
-
-class GenerationRequest(BaseModel):
-    """AFSIM 脚本生成请求"""
-    description: str
-    mode: Literal["generate", "fix"] = "generate"
-    error_context: Optional[str] = None
-    provider: Literal["deepseek", "ollama"] = "deepseek"
-
-
-class GenerationResponse(BaseModel):
-    """AFSIM 脚本生成响应"""
-    script: str
-    explanation: Optional[str] = None
-    provider: str
+    deepseek_api_base: str
+    deepseek_model: str
+    ollama_enabled: bool
+    ollama_base_url: str
+    ollama_model: str
+    user_id: Optional[int] = None
 
 
 class SettingsUpdate(BaseModel):
-    """设置更新"""
     provider: Optional[str] = None
     deepseek_api_key: Optional[str] = None
     deepseek_api_base: Optional[str] = None
@@ -51,11 +110,5 @@ class SettingsUpdate(BaseModel):
     ollama_model: Optional[str] = None
 
 
-class SettingsResponse(BaseModel):
-    """设置响应（不包含敏感信息）"""
-    provider: str
-    deepseek_api_base: str
-    deepseek_model: str
-    ollama_enabled: bool
-    ollama_base_url: str
-    ollama_model: str
+# 更新 forward reference
+ConversationDetailResponse.model_rebuild()

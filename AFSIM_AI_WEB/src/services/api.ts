@@ -6,7 +6,11 @@ import type {
   GenerationResponse,
   Settings,
   HealthCheck,
-  Message
+  Message,
+  User,
+  Token,
+  Conversation,
+  ConversationDetail,
 } from '../types';
 
 const api = axios.create({
@@ -14,14 +18,98 @@ const api = axios.create({
   timeout: 120000,
 });
 
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 api.interceptors.response.use(
   response => response,
   error => {
     console.error('API Error:', error);
+    if (error.response?.status === 401) {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
     return Promise.reject(error);
   }
 );
 
+// ============ 认证 API ============
+export const authApi = {
+  login: async (username: string, password: string): Promise<Token> => {
+    const formData = new FormData();
+    formData.append('username', username);
+    formData.append('password', password);
+    const response = await api.post<Token>('/auth/login', formData, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    return response.data;
+  },
+
+  register: async (username: string, email: string, password: string): Promise<User> => {
+    const response = await api.post<User>('/auth/register', {
+      username,
+      email,
+      password,
+    });
+    return response.data;
+  },
+
+  getMe: async (): Promise<User> => {
+    const response = await api.get<User>('/auth/me');
+    return response.data;
+  },
+};
+
+// ============ 对话 API ============
+export const conversationApi = {
+  list: async (): Promise<Conversation[]> => {
+    const response = await api.get<Conversation[]>('/conversations');
+    return response.data;
+  },
+
+  create: async (title?: string, provider?: string): Promise<Conversation> => {
+    const response = await api.post<Conversation>('/conversations', {
+      title: title || '新对话',
+      provider: provider || 'deepseek',
+    });
+    return response.data;
+  },
+
+  get: async (id: number): Promise<ConversationDetail> => {
+    const response = await api.get<ConversationDetail>(`/conversations/${id}`);
+    return response.data;
+  },
+
+  update: async (id: number, title: string): Promise<Conversation> => {
+    const response = await api.put<Conversation>(`/conversations/${id}`, { title });
+    return response.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/conversations/${id}`);
+  },
+
+  addMessage: async (conversationId: number, role: string, content: string): Promise<Message> => {
+    const response = await api.post<Message>('/conversations/messages', {
+      conversation_id: conversationId,
+      role,
+      content,
+    });
+    return response.data;
+  },
+
+  deleteMessage: async (messageId: number): Promise<void> => {
+    await api.delete(`/conversations/messages/${messageId}`);
+  },
+};
+
+// ============ 原有 Chat API ============
 export const chatApi = {
   chat: async (request: ChatRequest): Promise<ChatResponse> => {
     const response = await api.post<ChatResponse>('/chat', request);
@@ -46,9 +134,4 @@ export const chatApi = {
     const response = await api.get<HealthCheck>(`/health/${provider}`);
     return response.data;
   },
-
-  getKnowledgeFiles: async (): Promise<{ files: Array<{ name: string; path: string; size: number }> }> => {
-    const response = await api.get('/knowledge/files');
-    return response.data;
-  }
 };

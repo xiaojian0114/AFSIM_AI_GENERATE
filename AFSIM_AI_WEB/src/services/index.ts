@@ -1,1 +1,1 @@
-export { chatApi } from './api';
+export { chatApi, conversationApi, authApi } from './api';
