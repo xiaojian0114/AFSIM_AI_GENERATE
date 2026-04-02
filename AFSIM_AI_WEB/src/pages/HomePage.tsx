@@ -257,8 +257,7 @@ export const HomePage: React.FC = () => {
           }
         }}
         onTestConnection={async (p) => {
-          const res = await chatApi.healthCheck(p);
-          alert(`测试结果: ${res.status}`);
+          return await chatApi.healthCheck(p);
         }}
       />
 

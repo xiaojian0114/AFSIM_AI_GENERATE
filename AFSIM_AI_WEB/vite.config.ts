@@ -10,7 +10,12 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-        secure: false
+        secure: false,
+        // 开发环境直接代理到后端
+        bypass: (req, res, options) => {
+          // 让请求继续代理到后端
+          return undefined;
+        }
       }
     }
   }

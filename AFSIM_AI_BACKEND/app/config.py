@@ -30,7 +30,18 @@ class Settings(BaseSettings):
     
     def reload(self):
         """重新加载配置"""
-        self.__init__()
+        # 重新读取 .env 文件
+        from ..utils import read_env_file
+        env_data = read_env_file()
+        for key, value in env_data.items():
+            if hasattr(self, key):
+                # 转换类型
+                field_type = type(getattr(self.__class__, key, str))
+                if field_type == bool:
+                    value = value.lower() in ('true', '1', 'yes')
+                elif field_type == int:
+                    value = int(value)
+                setattr(self, key, value)
 
     class Config:
         env_file = ".env"

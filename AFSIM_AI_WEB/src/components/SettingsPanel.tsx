@@ -14,8 +14,8 @@ interface SettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
   settings: Settings;
-  onSave: (settings: Partial<Settings>) => Promise<void>;
-  onTestConnection: (provider: string) => Promise<void>;
+  onSave: (settings: Settings) => Promise<void>;
+  onTestConnection: (provider: string) => Promise<{ status: string }>;
 }
 
 const FormField: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
@@ -152,8 +152,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const handleTest = async (provider: string) => {
     setTesting(provider);
     try {
-      await onTestConnection(provider);
-      showStatus('success', `${provider === 'deepseek' ? 'DeepSeek' : 'Ollama'} 连接正常`);
+      const result = await onTestConnection(provider);
+      const status = result?.status || result;
+      const isSuccess = status === 'connected' || status === 'success';
+      showStatus(isSuccess ? 'success' : 'error',
+        isSuccess ? `${provider === 'deepseek' ? 'DeepSeek' : 'Ollama'} 连接正常` : `${provider === 'deepseek' ? 'DeepSeek' : 'Ollama'} 连接失败`
+      );
     } catch (error: any) {
       showStatus('error', '连接测试失败');
     } finally {

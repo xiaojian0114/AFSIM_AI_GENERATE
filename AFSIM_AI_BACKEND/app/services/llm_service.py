@@ -135,9 +135,12 @@ class LLMService:
     
     def _check_deepseek(self) -> Dict[str, Any]:
         """检查 DeepSeek 连接"""
+        print(f"[DeepSeek Check] API Key: {'已设置' if settings.deepseek_api_key else '未设置'}")
+        print(f"[DeepSeek Check] API Base: {settings.deepseek_api_base}")
+        print(f"[DeepSeek Check] Model: {settings.deepseek_model}")
         try:
             if not settings.deepseek_api_key or settings.deepseek_api_key == "your_api_key_here":
-                return {"status": "not_configured", "provider": "deepseek"}
+                return {"status": "not_configured", "provider": "deepseek", "error": "API Key 未设置"}
             
             # 发送一个简单的测试请求
             payload = {

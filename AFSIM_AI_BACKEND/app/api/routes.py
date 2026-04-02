@@ -110,7 +110,10 @@ async def generate_script(request: GenerationRequest):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[Generate] 错误: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        print(f"[Generate] 请求完成")
 
 
 @router.get("/knowledge/files")
@@ -170,7 +173,8 @@ async def update_settings(update: SettingsUpdate):
         if env_updates:
             update_env_file(env_updates)
         
-        print(f"[Settings] 保存成功")
+        print(f"[Settings] 保存成功，重新加载配置...")
+        settings.reload()
         
         return {"status": "success"}
     except HTTPException:
