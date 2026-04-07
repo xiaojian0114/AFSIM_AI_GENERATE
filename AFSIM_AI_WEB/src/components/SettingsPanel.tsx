@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { ollamaApi } from '../services/api';
 
 interface Settings {
-  provider: 'deepseek' | 'ollama';
-  deepseek_api_key: string;
+  provider: string;
+  deepseek_api_key?: string;
   deepseek_api_base: string;
   deepseek_model: string;
   ollama_enabled: boolean;
@@ -49,8 +50,8 @@ const StyledInput = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
 );
 
 const ProviderSelector: React.FC<{
-  value: 'deepseek' | 'ollama';
-  onChange: (v: 'deepseek' | 'ollama') => void;
+  value: string;
+  onChange: (v: string) => void;
   ollamaEnabled: boolean;
 }> = ({ value, onChange, ollamaEnabled }) => {
   const options = [
@@ -69,7 +70,7 @@ const ProviderSelector: React.FC<{
           key={opt.id}
           type="button"
           disabled={opt.disabled}
-          onClick={() => !opt.disabled && onChange(opt.id as 'deepseek' | 'ollama')}
+          onClick={() => !opt.disabled && onChange(opt.id)}
           style={{
             flex: 1,
             padding: '16px',
@@ -102,18 +103,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onTestConnection
 }) => {
   const [formData, setFormData] = useState<Settings>({
-    provider: 'deepseek',
-    deepseek_api_key: '',
-    deepseek_api_base: '',
-    deepseek_model: '',
-    ollama_enabled: false,
-    ollama_base_url: 'http://localhost:11434',
-    ollama_model: 'llama3',
-    ...settings
+    provider: settings.provider || 'deepseek',
+    deepseek_api_key: settings.deepseek_api_key || '',
+    deepseek_api_base: settings.deepseek_api_base || 'https://api.deepseek.com',
+    deepseek_model: settings.deepseek_model || 'deepseek-chat',
+    ollama_enabled: settings.ollama_enabled ?? false,
+    ollama_base_url: settings.ollama_base_url || 'http://localhost:11434',
+    ollama_model: settings.ollama_model || 'llama3',
   });
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [availableOllamaModels, setAvailableOllamaModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   useEffect(() => {
     setFormData(prev => ({
@@ -127,6 +129,23 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       ollama_model: settings.ollama_model || prev.ollama_model,
     }));
   }, [settings]);
+
+  useEffect(() => {
+    const loadOllamaModels = async () => {
+      if (isOpen && formData.ollama_enabled) {
+        setLoadingModels(true);
+        try {
+          const result = await ollamaApi.getModels();
+          setAvailableOllamaModels(result.models || []);
+        } catch {
+          setAvailableOllamaModels([]);
+        } finally {
+          setLoadingModels(false);
+        }
+      }
+    };
+    loadOllamaModels();
+  }, [isOpen, formData.ollama_enabled]);
 
   if (!isOpen) return null;
 
@@ -332,13 +351,42 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 />
               </FormField>
 
-              <FormField label="本地模型名称">
-                <StyledInput
-                  type="text"
+              <FormField label="本地模型">
+                <select
                   value={formData.ollama_model}
                   onChange={(e) => setFormData({...formData, ollama_model: e.target.value})}
-                  placeholder="llama3"
-                />
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    backgroundColor: '#374151',
+                    border: '1px solid #4b5563',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    fontSize: '14px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  {loadingModels ? (
+                    <option value="">加载中...</option>
+                  ) : availableOllamaModels.length > 0 ? (
+                    availableOllamaModels.map(model => (
+                      <option key={model} value={model}>{model}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value={formData.ollama_model}>{formData.ollama_model}</option>
+                      <option value="qwen3:4b">qwen3:4b</option>
+                      <option value="llama3">llama3</option>
+                      <option value="deepseek-r1">deepseek-r1</option>
+                    </>
+                  )}
+                </select>
+                {availableOllamaModels.length === 0 && !loadingModels && formData.ollama_enabled && (
+                  <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                    无法获取本地模型，请确保 Ollama 已运行
+                  </div>
+                )}
               </FormField>
             </div>
           )}

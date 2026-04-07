@@ -124,6 +124,36 @@ async def get_knowledge_files():
     }
 
 
+@router.get("/knowledge/files/{filename}")
+async def get_knowledge_file(filename: str):
+    """获取知识库文件内容"""
+    from pathlib import Path
+    kb_path = Path(settings.knowledge_base_path)
+    file_path = kb_path / filename
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"文件不存在: {filename}")
+    
+    if file_path.suffix.lower() != '.md':
+        raise HTTPException(status_code=400, detail="只支持 .md 文件")
+    
+    try:
+        content = file_path.read_text(encoding="utf-8")
+        return {"filename": filename, "content": content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ollama/models")
+async def get_ollama_models():
+    """获取可用的 Ollama 模型列表"""
+    result = llm_service.check_connection("ollama")
+    if result.get("status") == "connected":
+        return {"status": "connected", "models": result.get("available_models", [])}
+    else:
+        raise HTTPException(status_code=500, detail=result.get("error", "无法连接到 Ollama"))
+
+
 @router.get("/settings", response_model=SettingsResponse)
 async def get_settings():
     """获取当前设置（不包含敏感信息）"""

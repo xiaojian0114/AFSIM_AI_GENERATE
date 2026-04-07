@@ -108,7 +108,7 @@ class LLMService:
         response = requests.post(
             f"{settings.ollama_base_url}/api/chat",
             json=payload,
-            timeout=120
+            timeout=settings.ollama_timeout
         )
         response.raise_for_status()
         result = response.json()

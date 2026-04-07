@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     ollama_enabled: bool = False
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3"
+    ollama_timeout: int = 300
     
     # 默认设置
     max_tokens: int = 8192
@@ -38,7 +39,7 @@ class Settings(BaseSettings):
     def reload(self):
         """重新加载配置"""
         # 重新读取 .env 文件
-        from ..utils import read_env_file
+        from app.utils import read_env_file
         env_data = read_env_file()
         for key, value in env_data.items():
             if hasattr(self, key):

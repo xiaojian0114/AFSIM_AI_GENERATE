@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChatMessage, SettingsPanel } from '../components';
-import { chatApi, conversationApi, authApi } from '../services';
-import type { Message, Settings, User, Conversation, ConversationDetail } from '../types';
+import { ChatMessage, SettingsPanel, KnowledgeBasePage } from '../components';
+import { chatApi, conversationApi } from '../services';
+import type { Message, Settings, User, Conversation } from '../types';
 
 const COLORS = {
   bg: '#111827',
@@ -24,6 +24,7 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
   const [provider, setProvider] = useState<'deepseek' | 'ollama'>('deepseek');
   const [settings, setSettings] = useState<Settings>({
     provider: 'deepseek',
@@ -36,7 +37,7 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
 
   // 对话相关状态
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
+  const [currentConversation, setCurrentConversation] = useState<Conversation | undefined>(undefined);
   const [showSidebar, setShowSidebar] = useState(true);
   const [editingTitle, setEditingTitle] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -59,7 +60,7 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
   // 加载对话详情
   const loadConversation = async (conv: Conversation) => {
     try {
-      const detail = await conversationApi.get(conv.id);
+      const detail = await conversationApi.get(conv.id || 0);
       setMessages(detail.messages.map(m => ({
         id: m.id,
         conversation_id: m.conversation_id,
@@ -127,7 +128,7 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
   const saveMessage = async (role: string, content: string) => {
     if (!currentConversation) return;
     try {
-      await conversationApi.addMessage(currentConversation.id, role, content);
+      await conversationApi.addMessage(currentConversation.id || 0, role, content);
     } catch (err) {
       console.error('保存消息失败:', err);
     }
@@ -137,7 +138,7 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
   const handleUpdateTitle = async () => {
     if (!currentConversation || !newTitle.trim()) return;
     try {
-      const updated = await conversationApi.update(currentConversation.id, newTitle);
+      const updated = await conversationApi.update(currentConversation.id || 0, newTitle);
       setCurrentConversation(updated);
       setConversations(prev => prev.map(c => c.id === updated.id ? updated : c));
       setEditingTitle(false);
@@ -154,7 +155,7 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
       await conversationApi.delete(id);
       setConversations(prev => prev.filter(c => c.id !== id));
       if (currentConversation?.id === id) {
-        setCurrentConversation(null);
+        setCurrentConversation(undefined);
         setMessages([]);
       }
     } catch (err) {
@@ -178,7 +179,7 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
     if (!conv) {
       try {
         conv = await conversationApi.create('新对话', provider);
-        setConversations(prev => [conv, ...prev]);
+        setConversations(prev => [conv, ...prev] as Conversation[]);
         setCurrentConversation(conv);
       } catch (err) {
         console.error('创建对话失败:', err);
@@ -288,7 +289,14 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
             <option value="deepseek">DeepSeek</option>
             {settings.ollama_enabled && <option value="ollama">Ollama</option>}
           </select>
-          <button 
+          <button
+            onClick={() => setShowKnowledgeBase(true)}
+            style={{ padding: '6px 12px', borderRadius: '6px', border: `1px solid ${COLORS.accent}`, background: 'transparent', color: '#fff', cursor: 'pointer' }}
+            title="知识库"
+          >
+            📚
+          </button>
+          <button
             onClick={() => setShowSettings(true)}
             style={{ padding: '6px 12px', borderRadius: '6px', border: `1px solid ${COLORS.accent}`, background: 'transparent', color: '#fff', cursor: 'pointer' }}
           >
@@ -358,11 +366,11 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
                       {conv.title}
                     </div>
                     <div style={{ fontSize: '12px', color: COLORS.accent }}>
-                      {formatTime(conv.updated_at)} · {conv.messages_count} 条消息
+                      {formatTime(conv.updated_at || '')} · {conv.messages_count || 0} 条消息
                     </div>
                   </div>
                   <button
-                    onClick={(e) => handleDeleteConversation(conv.id, e)}
+                    onClick={(e) => handleDeleteConversation(conv.id || 0, e)}
                     style={{
                       background: 'transparent', border: 'none', color: COLORS.accent,
                       cursor: 'pointer', padding: '4px', fontSize: '12px', opacity: 0.6
@@ -414,9 +422,9 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
                 </>
               ) : (
                 <>
-                  <span style={{ flex: 1, fontSize: '16px', fontWeight: 500 }}>{currentConversation.title}</span>
+                  <span style={{ flex: 1, fontSize: '16px', fontWeight: 500 }}>{currentConversation?.title}</span>
                   <button
-                    onClick={() => { setNewTitle(currentConversation.title); setEditingTitle(true); }}
+                    onClick={() => { setNewTitle(currentConversation?.title || ''); setEditingTitle(true); }}
                     style={{ padding: '4px 8px', backgroundColor: 'transparent', border: `1px solid ${COLORS.accent}`, borderRadius: '4px', color: '#fff', cursor: 'pointer', fontSize: '12px' }}
                   >
                     ✏️ 重命名
@@ -513,6 +521,12 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
         onTestConnection={async (p) => {
           return await chatApi.healthCheck(p);
         }}
+      />
+
+      {/* 知识库页面 */}
+      <KnowledgeBasePage
+        isOpen={showKnowledgeBase}
+        onClose={() => setShowKnowledgeBase(false)}
       />
 
       <style>{`

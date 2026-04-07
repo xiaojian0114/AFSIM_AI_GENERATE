@@ -11,11 +11,14 @@ import type {
   Token,
   Conversation,
   ConversationDetail,
+  OllamaModelsResponse,
+  KnowledgeFilesResponse,
+  KnowledgeFileContent,
 } from '../types';
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 120000,
+  timeout: 300000, // 5 minutes for local Ollama
 });
 
 api.interceptors.request.use((config) => {
@@ -132,6 +135,27 @@ export const chatApi = {
 
   healthCheck: async (provider: string): Promise<HealthCheck> => {
     const response = await api.get<HealthCheck>(`/health/${provider}`);
+    return response.data;
+  },
+};
+
+// ============ Ollama API ============
+export const ollamaApi = {
+  getModels: async (): Promise<OllamaModelsResponse> => {
+    const response = await api.get<OllamaModelsResponse>('/ollama/models');
+    return response.data;
+  },
+};
+
+// ============ 知识库 API ============
+export const knowledgeApi = {
+  getFiles: async (): Promise<KnowledgeFilesResponse> => {
+    const response = await api.get<KnowledgeFilesResponse>('/knowledge/files');
+    return response.data;
+  },
+
+  getFileContent: async (filename: string): Promise<KnowledgeFileContent> => {
+    const response = await api.get<KnowledgeFileContent>(`/knowledge/files/${filename}`);
     return response.data;
   },
 };

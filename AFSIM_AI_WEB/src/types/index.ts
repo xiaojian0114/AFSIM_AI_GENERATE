@@ -13,21 +13,21 @@ export interface Token {
 }
 
 export interface Conversation {
-  id: number;
+  id?: number;
   title: string;
   provider: string;
   model?: string;
-  created_at: string;
-  updated_at: string;
-  messages_count: number;
+  created_at?: string;
+  updated_at?: string;
+  messages_count?: number;
 }
 
 export interface Message {
-  id: number;
-  conversation_id: number;
+  id?: number;
+  conversation_id?: number;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  created_at: string;
+  created_at?: string;
 }
 
 export interface ConversationDetail extends Conversation {
@@ -57,6 +57,7 @@ export interface GenerationResponse {
 
 export interface Settings {
   provider: string;
+  deepseek_api_key?: string;
   deepseek_api_base: string;
   deepseek_model: string;
   ollama_enabled: boolean;
@@ -65,8 +66,35 @@ export interface Settings {
   user_id?: number;
 }
 
+export interface ChatResponse {
+  content: string;
+  provider: string;
+  model?: string;
+  usage?: any;
+}
+
 export interface HealthCheck {
   status: 'ok' | 'error';
   message?: string;
   model?: string;
+}
+
+export interface OllamaModelsResponse {
+  status: string;
+  models: string[];
+}
+
+export interface KnowledgeFile {
+  name: string;
+  path: string;
+  size: number;
+}
+
+export interface KnowledgeFilesResponse {
+  files: KnowledgeFile[];
+}
+
+export interface KnowledgeFileContent {
+  filename: string;
+  content: string;
 }
